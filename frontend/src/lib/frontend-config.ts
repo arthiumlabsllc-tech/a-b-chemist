@@ -33,6 +33,26 @@ export type FrontendEnv = Record<string, string | undefined>;
 const FALLBACK_API_URL = 'http://localhost:5000';
 
 /**
+ * The build's environment, captured by direct member access.
+ *
+ * Next inlines `NEXT_PUBLIC_*` into the browser bundle only at the point where
+ * the code writes `process.env.NEXT_PUBLIC_X` outright. Handing the whole
+ * `process.env` object around — which these functions' parameter does for
+ * testability — carries nothing in client code: the object is empty there. A
+ * default of `process.env` therefore made every deployed build read `undefined`
+ * in the browser, fall back to `FALLBACK_API_URL`, and report the variable as
+ * unset even when the build had it, because the server-side prerender (real
+ * Node env) and the browser (empty object) disagreed. Reading the three keys
+ * dotted, once, here, is what puts their built values into the bundle;
+ * everything below stays pure and takes the record as an argument.
+ */
+const BUILD_ENV: FrontendEnv = {
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
+  NODE_ENV: process.env.NODE_ENV,
+};
+
+/**
  * Strips trailing slashes and returns the absolute origin.
  *
  * `http://host:5000/` plus a path built as `${base}/pos/sales` gives
@@ -43,7 +63,7 @@ export function normaliseApiBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, '');
 }
 
-export function readFrontendConfig(env: FrontendEnv = process.env): FrontendConfig {
+export function readFrontendConfig(env: FrontendEnv = BUILD_ENV): FrontendConfig {
   const configured = (env.NEXT_PUBLIC_API_URL || '').trim();
   return {
     apiBaseUrl: normaliseApiBaseUrl(configured || FALLBACK_API_URL),
@@ -59,7 +79,7 @@ export function readFrontendConfig(env: FrontendEnv = process.env): FrontendConf
  * error boundary, which is less useful than a banner naming the variable.
  */
 export function findFrontendConfigProblems(
-  env: FrontendEnv = process.env
+  env: FrontendEnv = BUILD_ENV
 ): string[] {
   const problems: string[] = [];
   const isProduction = env.NODE_ENV === 'production';
