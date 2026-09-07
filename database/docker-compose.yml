@@ -1,0 +1,106 @@
+# Verification harness for the A&B Chemist schema.
+#
+# Two containers, both the same Postgres 16 image: one is the database, the
+# other is a psql client that applies init.sql and then runs the assertions.
+# No application code and no driver in the loop — the harness observes the
+# server itself, which is the only witness worth having for trigger behaviour.
+#
+# Run with: npm run db:verify   (from the repository root)
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: verify
+      POSTGRES_PASSWORD: verify
+      POSTGRES_DB: verify
+    # Throwaway by construction: the data directory lives in memory, so a
+    # previous run cannot leave rows that make this run pass.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U verify -d verify']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  verify:
+    image: postgres:16-alpine
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: '5432'
+      PGUSER: verify
+      PGPASSWORD: verify
+      PGDATABASE: verify
+    volumes:
+      - ./:/tests:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        psql -v ON_ERROR_STOP=1 -f /tests/init.sql
+
+        # Every `$` below is doubled, and that is load-bearing rather than
+        # stylistic. Compose interpolates this string before sh ever sees it, so
+        # a loop variable written with one dollar sign instead of two arrives as
+        # an empty string and the loop runs `psql -f ""` once per file. It did
+        # exactly that, silently, until the first migration existed to expose it:
+        # with an empty migrations directory the loop body never ran, so there
+        # was nothing to corrupt. `$$` is Compose's escape for a literal `$`.
+        #
+        # This comment is interpolated too, which is why the sentence above
+        # describes the mistake rather than showing it. Showing it cost a
+        # `The "f" variable is not set` warning on every single harness run —
+        # harmless, because the blank substitution landed in a comment, but it
+        # made the warning familiar, and a familiar warning is one nobody reads
+        # on the day an unescaped variable reaches the shell instead.
+        #
+        # Migrations in numeric order, then each one's verification. A verify
+        # file that has never been seen fail proves nothing, so the harness is
+        # the place they are all run, every time.
+        applied=0
+        for f in $$(ls /tests/migrations/*.sql 2>/dev/null | grep -v '\.verify\.sql$$' | sort); do
+          echo "applying $$f"
+          psql -v ON_ERROR_STOP=1 -f "$$f"
+          applied=$$((applied + 1))
+        done
+
+        # Checked here, before the verify loop, so an empty glob reports itself.
+        # Left until after the verify loop it is unreachable in the common case:
+        # a verify file for a migration that was never applied fails first and
+        # reports a missing column, which hides the real fault — that no
+        # migration ran at all. This repository ships migrations and only ever
+        # adds them, so zero is always a fault.
+        if [ "$$applied" -eq 0 ]; then
+          echo "no migrations were applied; the harness would pass without testing any"
+          exit 1
+        fi
+
+        verified=0
+        for f in $$(ls /tests/migrations/*.verify.sql 2>/dev/null | sort); do
+          echo "verifying $$f"
+          psql -v ON_ERROR_STOP=1 -f "$$f"
+          verified=$$((verified + 1))
+        done
+
+        # Every migration carries its own proof. Without this the harness can
+        # apply migrations and verify none of them, and "SCHEMA HARNESS PASSED"
+        # would still print.
+        if [ "$$verified" -ne "$$applied" ]; then
+          echo "applied $$applied migration(s) but verified $$verified; every migration needs a .verify.sql"
+          exit 1
+        fi
+        echo "applied and verified $$applied migration(s)"
+
+        # Assertions run last, against the migrated schema. That ordering is
+        # deliberate: what ships is init.sql plus every migration, so a column a
+        # migration adds must be visible to the assertions that exercise it.
+        # Running them before the migrations would test a schema nothing is ever
+        # deployed as, and the repository statements in section 9 name
+        # users.session_version, which only migration 0001 creates.
+        psql -v ON_ERROR_STOP=1 -f /tests/tests/assertions.sql
+        echo 'SCHEMA HARNESS PASSED'

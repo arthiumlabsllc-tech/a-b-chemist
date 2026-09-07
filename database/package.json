@@ -1,0 +1,10 @@
+{
+  "name": "a-and-b-chemist-database",
+  "version": "0.1.0",
+  "description": "A&B Chemist schema, migrations and the real-Postgres verification harness",
+  "private": true,
+  "scripts": {
+    "verify": "docker compose -f docker-compose.yml up --abort-on-container-exit --exit-code-from verify --force-recreate",
+    "verify:down": "docker compose -f docker-compose.yml down --volumes --remove-orphans"
+  }
+}

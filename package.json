@@ -1,0 +1,43 @@
+{
+  "name": "a-and-b-chemist",
+  "version": "0.1.0",
+  "description": "A&B Chemist pharmacy management platform — single-tenant build for one community pharmacy in Ghana",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend",
+    "database"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run build:shared && npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build:shared && npm run build --workspace=frontend && npm run build --workspace=backend",
+    "build:shared": "npm run build --workspace=shared",
+    "build:backend": "npm run build:shared && npm run build --workspace=backend",
+    "build:frontend": "npm run build:shared && npm run build --workspace=frontend",
+    "start": "npm run start --workspace=backend",
+    "typecheck": "npm run build:shared && npm run typecheck --workspace=shared && npm run typecheck --workspace=backend && npm run typecheck --workspace=frontend",
+    "test": "npm run test --workspace=shared && npm run test --workspace=backend && npm run test --workspace=frontend",
+    "test:shared": "npm run test --workspace=shared",
+    "test:mutations": "npm run test:mutations --workspace=shared",
+    "test:backend": "npm run build:shared && npm run test --workspace=backend",
+    "test:frontend": "npm run build:shared && npm run test --workspace=frontend",
+    "lint": "npm run lint --workspace=shared && npm run lint --workspace=backend && npm run lint --workspace=frontend",
+    "db:apply": "npm run db:apply --workspace=backend",
+    "db:seed": "npm run db:seed --workspace=backend",
+    "reminders:run": "npm run reminders:run --workspace=backend",
+    "db:verify": "npm run verify --workspace=database",
+    "db:verify:down": "npm run verify:down --workspace=database",
+    "guard:terms": "node scripts/guard-banned-terms.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "author": "Arthium Labs LLC",
+  "license": "UNLICENSED"
+}

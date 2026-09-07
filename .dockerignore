@@ -1,0 +1,54 @@
+# The build context is the repository root (see `render.yaml`'s `dockerContext`
+# and the note at the top of `backend/Dockerfile`), so without this file every
+# build tars up the whole working tree and hands it to the Docker daemon —
+# including three workspaces' `node_modules`, a `.next` cache, and, if Postgres
+# has ever been run from this repo, its data directory.
+#
+# Nothing here is COPY'd by the Dockerfile today. This is not what makes that
+# true, and it is not the reason to have the file: the reason is that a build
+# context containing secrets and gigabytes of other people's build output is a
+# slow build and a wide one, and both get worse before anyone notices.
+
+# Dependencies. Built for the host, not for alpine — a native module copied in
+# from a Windows or macOS working tree would not load in the image anyway.
+**/node_modules
+
+# Build output. The image builds its own from source; a stale `dist` in the
+# context is the one thing here that could quietly change what ships.
+**/dist
+**/.next
+**/out
+**/build
+**/*.tsbuildinfo
+
+# Test and coverage output
+**/coverage
+**/.nyc_output
+shared/mutation-report.json
+
+# Secrets. Never in a build context: it is uploaded to the daemon, and on a
+# hosted builder that means leaving this machine.
+.env
+.env.local
+.env.*.local
+
+# Version control and editors
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Local database volume, if Postgres has been run from this repo
+database/.pgdata
+
+# Logs and scratch
+**/*.log
+npm-debug.log*
+logs
+
+# Platform metadata for other hosts. The frontend ships to Vercel and is not
+# part of this image; these are excluded for context size only.
+.vercel
+.render

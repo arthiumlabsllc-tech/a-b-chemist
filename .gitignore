@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Builds
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Tests and coverage
+coverage/
+.nyc_output/
+# Written by `npm run test:mutations` in shared/. Generated output, and the summary
+# is printed to stdout anyway.
+shared/mutation-report.json
+
+# Environment — never commit secrets. .env.example is committed instead.
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Uploads and runtime artefacts
+uploads/
+logs/
+*.log
+npm-debug.log*
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Vercel and Render
+.vercel/
+.render/
+
+# Local database volume, if postgres is run from this repo
+database/.pgdata/

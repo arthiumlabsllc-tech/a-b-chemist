@@ -1,0 +1,19 @@
+{
+  // No `paths` alias here, unlike the frontend. `tsc` rewrites nothing: an
+  // alias compiles clean and then fails at runtime under ts-node and in the
+  // container, because module resolution is a bundler job and this package has
+  // no bundler. Relative imports are uglier and they work everywhere.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "sourceMap": true,
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

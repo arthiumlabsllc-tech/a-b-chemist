@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    /* Stops iOS from inflating text on rotation, which on a till means the
+       basket layout changing while someone is mid-sale. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-surface-50 text-neutral-900 antialiased;
+  }
+
+  /* A visible focus ring on every interactive element. This screen is used with
+     a keyboard and a barcode scanner as well as a finger, and `outline: none`
+     without a replacement is how those users lose track of where they are. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-white;
+  }
+}
+
+@layer components {
+  /* Every amount the till shows: line totals, tax, change, a receipt total.
+     Tabular figures keep a column of prices aligned so it can be read downwards.
+     A font stack does not do this — `font-variant-numeric` is its own property. */
+  .money {
+    font-variant-numeric: tabular-nums;
+    @apply font-mono;
+  }
+
+  /* The minimum tap target for anything operated at the counter. */
+  .touch-target {
+    @apply min-h-touch min-w-touch;
+  }
+}

@@ -1,0 +1,36 @@
+{
+  // The purity contract, and the reason this package exists separately.
+  //
+  // `lib: ["ES2017"]` and no DOM, plus `types` carrying nothing but `jest`. So
+  // `window`, `document`, `fetch` and `localStorage` are compile errors here, and
+  // `tsconfig.build.json` narrows `types` to `[]` so that `process`, `Buffer`,
+  // `require` and `console` are compile errors in everything that ships. That is
+  // not tidiness: the plan requires one tax implementation used by both the API
+  // and the offline pricer in the browser, and a shared module that secretly reads
+  // an environment variable compiles on the server, passes its tests on the
+  // server, and throws in a service worker. The only way to make that failure
+  // impossible rather than unlikely is to make the module unable to name the thing.
+  //
+  // This file allows `jest` because the suite under `src/__tests__` has to
+  // typecheck; the build excludes those tests, so nothing shipped is permitted a
+  // global a browser does not have.
+  //
+  // Target ES2017, not the backend's ES2020: the emitted JavaScript has to run in
+  // every browser the till is opened in, and the backend is happy consuming a
+  // subset of what it could.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2017",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2017"],
+    "types": ["jest"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

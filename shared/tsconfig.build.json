@@ -1,0 +1,13 @@
+{
+  // `types: []` is the enforcement. With no type packages in scope, a shipped
+  // module cannot name `process`, `Buffer`, `require` or `console` — the compiler
+  // has no declaration for any of them. Tests are excluded, so they keep `jest`
+  // from `tsconfig.json` and this stays strict about everything that reaches
+  // `dist`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    "noEmit": false
+  },
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/__tests__/**"]
+}
