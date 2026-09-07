@@ -22,6 +22,10 @@ export const metadata: Metadata = {
   },
   description: 'Stock, dispensing and the till for A&B Chemist.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/favicon.png',
+  },
   // Not the access control — the login is. But this app holds patient records,
   // and there is no version of it that should appear in a search result.
   robots: { index: false, follow: false },

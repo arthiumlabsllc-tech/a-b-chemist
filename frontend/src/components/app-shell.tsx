@@ -47,12 +47,14 @@
 
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { OfflineIndicator } from '@/components/offline-indicator';
 import { OfflineSync } from '@/components/offline-sync';
+import { PoweredByArthium } from '@/components/powered-by';
 import { useAuth } from '@/hooks/use-auth';
 import { ROLE_LABELS, navFor } from '@/lib/navigation';
 import type { NavItem } from '@/lib/navigation';
@@ -108,8 +110,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* The rail. Hidden below `lg`, where the tab bar in the header takes over. */}
       <aside className="hidden w-56 shrink-0 flex-col bg-primary-800 lg:flex">
         <div className="px-4 py-5">
-          <p className="text-base font-semibold text-white">{frontendConfig.appName}</p>
-          <p className="mt-0.5 text-2xs uppercase tracking-wide text-primary-200">
+          {/* The wordmark is dark on a transparent field, so on this dark rail it
+              sits on a white chip to stay legible. */}
+          <div className="inline-flex rounded-md bg-white px-2 py-1.5">
+            <Image
+              src="/logo.png"
+              alt={frontendConfig.appName}
+              width={1094}
+              height={386}
+              className="h-9 w-auto"
+            />
+          </div>
+          <p className="mt-2 text-2xs uppercase tracking-wide text-primary-200">
             {frontendConfig.environment === 'production' ? 'Live' : frontendConfig.environment}
           </p>
         </div>
@@ -141,6 +153,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             {signingOut ? 'Signing out…' : 'Sign out'}
           </button>
         </div>
+
+        {/* Attribution sits at the very bottom of the rail; the nav's `flex-1`
+            above is what pushes it and the sign-out block down. */}
+        <PoweredByArthium className="px-4 pb-4 text-2xs text-primary-200" />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -149,7 +165,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             the till off the screen. */}
         <header className="border-b border-surface-200 bg-white lg:hidden">
           <div className="flex min-h-touch items-center justify-between gap-3 px-4">
-            <p className="text-sm font-semibold text-neutral-900">{frontendConfig.appName}</p>
+            <Image
+              src="/logo.png"
+              alt={frontendConfig.appName}
+              width={1094}
+              height={386}
+              className="h-7 w-auto"
+            />
             <div className="flex items-center gap-1">
               <NotificationBell />
               <button
@@ -193,6 +215,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="min-w-0 flex-1">
           <OfflineIndicator />
           {children}
+          {/* The rail carries the attribution on large screens; below `lg` there
+              is no rail, so it moves to the foot of the page content. */}
+          <PoweredByArthium className="px-4 py-6 text-center text-2xs text-neutral-500 lg:hidden" />
         </main>
       </div>
     </div>
