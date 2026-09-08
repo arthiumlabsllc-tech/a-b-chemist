@@ -107,6 +107,26 @@ import type {
 const PRODUCT_PAGE_LIMIT = 200;
 const SEARCH_DEBOUNCE_MS = 300;
 
+/** A printer, for the receipt's Print button. */
+function PrinterIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-4 w-4"
+    >
+      <path d="M7 8V3h10v5" />
+      <rect x="4" y="8" width="16" height="8" rx="2" />
+      <path d="M7 14h10v7H7z" />
+    </svg>
+  );
+}
+
 /**
  * What Charge arrived at: the total to take payment on, and who produced it.
  *
@@ -591,9 +611,26 @@ export default function PosPage() {
         onClose={closeReceipt}
         title={receipt?.kind === 'held' ? 'Held on this device' : 'Sale recorded'}
         footer={
-          <Button variant="primary" size="lg" block onClick={closeReceipt}>
-            New sale
-          </Button>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-2xs text-neutral-500">
+              {receipt?.kind === 'recorded'
+                ? `${receipt.detail.items.length} line item(s)`
+                : receipt?.kind === 'held'
+                  ? `${receipt.lines.length} line item(s)`
+                  : ''}
+            </p>
+            <div className="flex items-center gap-2">
+              {receipt?.kind === 'recorded' && (
+                <Button variant="secondary" size="md" onClick={() => window.print()}>
+                  <PrinterIcon />
+                  Print
+                </Button>
+              )}
+              <Button variant="primary" size="md" onClick={closeReceipt}>
+                New sale
+              </Button>
+            </div>
+          </div>
         }
       >
         {receipt?.kind === 'recorded' && (

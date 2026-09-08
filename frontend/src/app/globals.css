@@ -35,3 +35,27 @@
     @apply min-h-touch min-w-touch;
   }
 }
+
+/* Printing a receipt. The slip is the only thing that belongs on the paper, so
+   everything else is hidden by visibility (not display, which would collapse the
+   layout the slip is positioned in) and the slip is lifted to the top of the page.
+   The element carries id="receipt-print-area" in components/pos/receipt.tsx; only
+   one receipt is mounted at a time in either place it renders, so the id is safe. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #receipt-print-area,
+  #receipt-print-area * {
+    visibility: visible;
+  }
+
+  #receipt-print-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    border: none;
+  }
+}

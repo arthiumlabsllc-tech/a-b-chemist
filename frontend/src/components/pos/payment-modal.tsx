@@ -10,6 +10,17 @@
  * use, so a price or a rate that moved since the grid loaded is already reflected,
  * and the total at the top of this modal is the one on the receipt.
  *
+ * ## The shape of the screen
+ *
+ * A till is operated with a thumb, so the money goes in the way a till takes it: a
+ * keypad and a row of note chips on one side, the method as big tiles rather than a
+ * dropdown, and the tenders already committed listed where the operator can count
+ * them against the cash in their hand. The operator composes one tender at a time in
+ * the amount field and commits it with "Add payment"; "Complete" only enables once
+ * the committed tenders cover the total. Composing-then-committing, rather than
+ * editing a list of rows in place, is what keeps a half-entered second note from
+ * ever looking like money the sale already has.
+ *
  * ## Why it takes a total and not a `QuoteResult`
  *
  * It only ever read `quote.basket.total`. Taking the whole quote would have let an
@@ -52,6 +63,8 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 
+import { decimalStringFromPesewas } from 'a-and-b-chemist-shared';
+
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { controlClass } from '@/components/ui/field';
@@ -68,6 +81,13 @@ const MAX_TENDERS = 4;
 
 /** The only tender that does not need a server to settle it. */
 const CASH_ONLY: readonly SalePaymentMethod[] = ['cash'];
+
+/**
+ * The note denominations worth a single tap, largest first: the notes a Ghanaian
+ * drawer actually holds, so covering a total is a couple of taps rather than a
+ * keyed figure. One cedi rounds it off.
+ */
+const QUICK_ADD_CEDIS: readonly number[] = [200, 100, 50, 20, 10, 5, 1];
 
 const METHOD_LABELS: Record<SalePaymentMethod, string> = {
   cash: 'Cash',
@@ -110,6 +130,68 @@ function gatewayWarning(mode: GatewayMode): string | null {
     : 'Mobile money is not configured on this server, so a charge cannot be confirmed. Take cash, or ask the owner to configure the gateway.';
 }
 
+/** A banknote, for the cash tile. */
+function CashIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-5 w-5"
+    >
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <circle cx="12" cy="12" r="2.5" />
+      <path d="M5.5 9.5v.01M18.5 14.5v.01" />
+    </svg>
+  );
+}
+
+/** A phone, for the mobile-money tile. */
+function MomoIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-5 w-5"
+    >
+      <rect x="7" y="2.5" width="10" height="19" rx="2" />
+      <path d="M11 18.5h2" />
+    </svg>
+  );
+}
+
+/** The keypad's delete key. */
+function BackspaceIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-5 w-5"
+    >
+      <path d="M9 5h12v14H9L3 12l6-7z" />
+      <path d="M12.5 9.5l5 5M17.5 9.5l-5 5" />
+    </svg>
+  );
+}
+
+function MethodIcon({ method }: { method: SalePaymentMethod }) {
+  return method === 'cash' ? <CashIcon /> : <MomoIcon />;
+}
+
 export function PaymentModal({
   open,
   totalText,
@@ -122,57 +204,91 @@ export function PaymentModal({
   onSubmit,
   onClose,
 }: PaymentModalProps) {
+  const amountId = useId();
+  const referenceId = useId();
   const approverId = useId();
   const nextKey = useRef(0);
 
-  const [rows, setRows] = useState<TenderRow[]>([]);
+  // The tenders already committed to this sale, and the one being composed on the
+  // keypad. Kept apart so a half-entered note never counts towards what is owed.
+  const [committed, setCommitted] = useState<TenderRow[]>([]);
+  const [method, setMethod] = useState<SalePaymentMethod>('cash');
+  const [amountText, setAmountText] = useState('');
+  const [reference, setReference] = useState('');
   const [approver, setApprover] = useState('');
 
   const totalPesewas = parseCediInput(totalText) ?? 0;
 
   // Reset every time the modal opens, so a sale is never charged against the
-  // tenders of the one before it. The first row is cash, prefilled with the exact
-  // total — the common case is one note that covers it, and the operator edits the
-  // figure only when the customer hands over more.
+  // tenders of the one before it. The composer starts on cash for the exact total —
+  // the common case is one tender that covers it, and the operator only reaches for
+  // the keypad when the customer hands over something else.
   useEffect(() => {
     if (!open) return;
-    nextKey.current += 1;
-    setRows([{ key: `t${nextKey.current}`, method: 'cash', amountText: totalText, reference: '' }]);
+    setCommitted([]);
+    setMethod('cash');
+    setAmountText(totalText);
+    setReference('');
     setApprover('');
   }, [open, totalText]);
 
-  const drafts: TenderDraft[] = rows.map((row) => ({
+  const drafts: TenderDraft[] = committed.map((row) => ({
     method: row.method,
     amountPesewas: parseCediInput(row.amountText) ?? 0,
     ...(row.method === 'cash' ? { reference: row.reference } : {}),
   }));
   const preview = previewTenders(drafts, totalPesewas);
 
-  const usesMomo = rows.some((row) => row.method === 'momo');
+  const composerPesewas = parseCediInput(amountText) ?? 0;
+  const usesMomo = method === 'momo' || committed.some((row) => row.method === 'momo');
   const warning =
     usesMomo && paymentConfig !== null ? gatewayWarning(paymentConfig.mode) : null;
 
   const methods = offline ? CASH_ONLY : SALE_PAYMENT_METHODS;
 
   const approvalMissing = requiresApproval && approver === '';
+  const canAdd = composerPesewas > 0 && committed.length < MAX_TENDERS && !submitting;
   const canSubmit =
     preview.fault === null && preview.settled && !approvalMissing && !submitting;
 
-  function updateRow(key: string, patch: Partial<TenderRow>) {
-    setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  function pressKey(key: string) {
+    setAmountText((current) => {
+      if (key === 'back') return current.slice(0, -1);
+      if (key === '.') {
+        if (current.includes('.')) return current;
+        return current === '' ? '0.' : `${current}.`;
+      }
+      if (current.includes('.')) {
+        const [, decimals = ''] = current.split('.');
+        if (decimals.length >= 2) return current;
+      }
+      if (current === '0') return key;
+      return `${current}${key}`;
+    });
   }
 
-  function addRow() {
-    if (rows.length >= MAX_TENDERS) return;
+  function addQuickCedis(cedis: number) {
+    setAmountText(decimalStringFromPesewas(composerPesewas + cedis * 100));
+  }
+
+  function setExactRemaining() {
+    setAmountText(decimalStringFromPesewas(preview.duePesewas));
+  }
+
+  function addPayment() {
+    if (!canAdd) return;
     nextKey.current += 1;
-    setRows((current) => [
-      ...current,
-      { key: `t${nextKey.current}`, method: 'cash', amountText: '', reference: '' },
-    ]);
+    const row: TenderRow = { key: `t${nextKey.current}`, method, amountText, reference };
+    // Leave the next tender pre-filled with what is still outstanding, so a split
+    // is two taps rather than a re-keyed figure.
+    const remainingAfter = Math.max(0, totalPesewas - (preview.tenderedPesewas + composerPesewas));
+    setCommitted((current) => [...current, row]);
+    setAmountText(remainingAfter > 0 ? decimalStringFromPesewas(remainingAfter) : '');
+    setReference('');
   }
 
-  function removeRow(key: string) {
-    setRows((current) => current.filter((row) => row.key !== key));
+  function removeCommitted(key: string) {
+    setCommitted((current) => current.filter((row) => row.key !== key));
   }
 
   function submit() {
@@ -185,26 +301,39 @@ export function PaymentModal({
       open={open}
       onClose={onClose}
       size="lg"
-      title={`Take payment · ${cediText(totalPesewas)}`}
+      title="Take payment"
       footer={
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-base font-semibold text-neutral-900">
-            <span>{preview.changePesewas > 0 ? 'Change due' : 'Total due'}</span>
-            <span className="money">
-              {cediText(preview.changePesewas > 0 ? preview.changePesewas : preview.duePesewas)}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-neutral-600">
+            Committed{' '}
+            <span className="money font-semibold text-neutral-900">
+              {cediText(preview.tenderedPesewas)}
             </span>
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" size="md" onClick={onClose} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button variant="secondary" size="md" onClick={addPayment} disabled={!canAdd}>
+              Add payment
+            </Button>
+            <Button variant="primary" size="md" loading={submitting} disabled={!canSubmit} onClick={submit}>
+              {submitting
+                ? offline
+                  ? 'Holding…'
+                  : 'Recording…'
+                : `${offline ? 'Hold on this device' : 'Complete'} · ${cediText(totalPesewas)}`}
+            </Button>
           </div>
-          <Button variant="primary" size="lg" block loading={submitting} disabled={!canSubmit} onClick={submit}>
-            {submitting
-              ? offline
-                ? 'Holding…'
-                : 'Recording…'
-              : `${offline ? 'Hold on this device' : 'Complete sale'} · ${cediText(totalPesewas)}`}
-          </Button>
         </div>
       }
     >
       <div className="space-y-4">
+        <p className="text-sm text-neutral-600">
+          <span className="money font-semibold text-neutral-900">{cediText(preview.duePesewas)}</span>{' '}
+          still to collect of {cediText(totalPesewas)}
+        </p>
+
         {error !== null && <ErrorNotice>{error}</ErrorNotice>}
         {offline && (
           <WarningNotice>
@@ -218,101 +347,155 @@ export function PaymentModal({
         {warning !== null && <WarningNotice>{warning}</WarningNotice>}
         {preview.fault !== null && <ErrorNotice>{preview.fault}</ErrorNotice>}
 
-        <div className="space-y-2">
-          {rows.map((row) => (
-            <div
-              key={row.key}
-              className="grid grid-cols-[auto_1fr_auto] items-start gap-2 rounded-lg border border-surface-200 p-2"
-            >
-              <select
-                aria-label="Payment method"
-                value={row.method}
-                onChange={(event) =>
-                  updateRow(row.key, { method: event.target.value as SalePaymentMethod })
-                }
-                className={[controlClass, 'min-h-touch w-32 text-sm'].join(' ')}
-              >
-                {methods.map((method) => (
-                  <option key={method} value={method}>
-                    {METHOD_LABELS[method]}
-                  </option>
-                ))}
-              </select>
-
-              <div className="space-y-2">
-                <label className="block">
-                  <span className="sr-only">Amount in cedis</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={row.amountText}
-                    placeholder="0.00"
-                    onChange={(event) => updateRow(row.key, { amountText: event.target.value })}
-                    className={[controlClass, 'min-h-touch text-sm'].join(' ')}
-                  />
-                </label>
-                {row.method === 'cash' && (
-                  <label className="block">
-                    <span className="sr-only">Cash note (optional)</span>
-                    <input
-                      type="text"
-                      value={row.reference}
-                      placeholder="Note (optional)"
-                      onChange={(event) => updateRow(row.key, { reference: event.target.value })}
-                      className={[controlClass, 'min-h-touch text-sm'].join(' ')}
-                    />
-                  </label>
-                )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium text-neutral-700">Method</p>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                {methods.map((option) => {
+                  const selected = option === method;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setMethod(option)}
+                      className={[
+                        'flex min-h-touch-lg flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-medium',
+                        selected
+                          ? 'border-primary-500 bg-primary-50 text-primary-700 ring-1 ring-primary-500'
+                          : 'border-surface-200 bg-white text-neutral-700 hover:bg-surface-100',
+                      ].join(' ')}
+                    >
+                      <MethodIcon method={option} />
+                      <span>{METHOD_LABELS[option]}</span>
+                    </button>
+                  );
+                })}
               </div>
+            </div>
 
+            <div>
+              <label htmlFor={amountId} className="text-sm font-medium text-neutral-700">
+                Amount (GHS)
+              </label>
+              <input
+                id={amountId}
+                type="text"
+                inputMode="decimal"
+                value={amountText}
+                placeholder="0.00"
+                onChange={(event) => setAmountText(event.target.value)}
+                className={[controlClass, 'mt-1 min-h-touch-lg text-right text-xl font-semibold'].join(' ')}
+              />
+            </div>
+
+            {method === 'cash' && (
+              <div>
+                <label htmlFor={referenceId} className="text-sm font-medium text-neutral-700">
+                  Note (optional)
+                </label>
+                <input
+                  id={referenceId}
+                  type="text"
+                  value={reference}
+                  placeholder="e.g. the note serial, if you keep one"
+                  onChange={(event) => setReference(event.target.value)}
+                  className={[controlClass, 'mt-1 min-h-touch text-sm'].join(' ')}
+                />
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                aria-label="Remove this tender"
-                onClick={() => removeRow(row.key)}
-                disabled={rows.length === 1}
-                className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-md text-neutral-400 hover:bg-surface-100 hover:text-danger-600 disabled:opacity-30"
+                onClick={setExactRemaining}
+                className="min-h-touch rounded-full border border-primary-500 px-3 text-sm font-medium text-primary-700 hover:bg-primary-50"
               >
-                <span aria-hidden="true" className="text-xl leading-none">
-                  {'\u00d7'}
-                </span>
+                Exact {cediText(preview.duePesewas)}
               </button>
+              {QUICK_ADD_CEDIS.map((cedis) => (
+                <button
+                  key={cedis}
+                  type="button"
+                  onClick={() => addQuickCedis(cedis)}
+                  className="min-h-touch rounded-full px-2 text-sm text-neutral-600 hover:bg-surface-100 hover:text-neutral-900"
+                >
+                  +{cedis}
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <Button variant="secondary" size="md" onClick={addRow} disabled={rows.length >= MAX_TENDERS}>
-              Add tender
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Amount keypad">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'back'].map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => pressKey(key)}
+                  aria-label={key === 'back' ? 'Delete last digit' : key === '.' ? 'Decimal point' : key}
+                  className="inline-flex min-h-touch-lg items-center justify-center rounded-lg border border-surface-200 bg-white text-lg font-semibold text-neutral-800 hover:bg-surface-100"
+                >
+                  {key === 'back' ? <BackspaceIcon /> : key}
+                </button>
+              ))}
+            </div>
+            <Button variant="secondary" size="md" block onClick={() => setAmountText('')}>
+              Clear amount
             </Button>
-            <Button
-              variant="ghost"
-              size="md"
-              onClick={() => {
-                const [first] = rows;
-                if (first !== undefined) {
-                  updateRow(first.key, { method: 'cash', amountText: totalText, reference: first.reference });
-                  setRows((current) => current.slice(0, 1));
-                }
-              }}
-            >
-              Exact cash
-            </Button>
+
+            <div>
+              <p className="text-sm font-medium text-neutral-700">Payments on this sale</p>
+              {committed.length === 0 ? (
+                <p className="mt-1 rounded-lg border border-dashed border-surface-300 p-3 text-sm text-neutral-500">
+                  Nothing added yet. Choose a method and tap “Add payment”.
+                </p>
+              ) : (
+                <ul className="mt-1 divide-y divide-surface-200 rounded-lg border border-surface-200">
+                  {committed.map((row) => (
+                    <li key={row.key} className="flex items-center gap-2 px-3 py-2">
+                      <span className="min-w-0 flex-1 truncate text-sm text-neutral-800">
+                        {METHOD_LABELS[row.method]}
+                        {row.method === 'cash' && row.reference.trim() !== '' && (
+                          <span className="text-neutral-400"> · {row.reference}</span>
+                        )}
+                      </span>
+                      <span className="money shrink-0 text-sm font-semibold text-neutral-900">
+                        {cediText(parseCediInput(row.amountText) ?? 0)}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Remove this payment"
+                        onClick={() => removeCommitted(row.key)}
+                        disabled={submitting}
+                        className="inline-flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-surface-100 hover:text-danger-600 disabled:opacity-30"
+                      >
+                        <span aria-hidden="true" className="text-xl leading-none">
+                          {'×'}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-2 text-sm text-neutral-600">
+                Remaining{' '}
+                <span className="money font-semibold text-neutral-900">
+                  {cediText(preview.duePesewas)}
+                </span>
+              </p>
+              {preview.changePesewas > 0 && (
+                <p className="text-sm text-neutral-600">
+                  Change{' '}
+                  <span className="money font-semibold text-neutral-900">
+                    {cediText(preview.changePesewas)}
+                  </span>
+                </p>
+              )}
+            </div>
           </div>
         </div>
-
-        <dl className="space-y-1 rounded-lg bg-surface-50 p-3 text-sm">
-          <div className="flex justify-between text-neutral-600">
-            <dt>Tendered</dt>
-            <dd className="money">{cediText(preview.tenderedPesewas)}</dd>
-          </div>
-          <div className="flex justify-between text-neutral-600">
-            <dt>Still due</dt>
-            <dd className="money">{cediText(preview.duePesewas)}</dd>
-          </div>
-          <div className="flex justify-between font-semibold text-neutral-900">
-            <dt>Change</dt>
-            <dd className="money">{cediText(preview.changePesewas)}</dd>
-          </div>
-        </dl>
 
         {requiresApproval && (
           <div>

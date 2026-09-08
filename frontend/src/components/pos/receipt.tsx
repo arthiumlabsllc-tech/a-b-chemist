@@ -8,10 +8,23 @@
  * a refund conversation. One receipt layout, two places, no copy of it — the same
  * argument as every other piece in `components/ui`.
  *
+ * ## It is laid out like the slip it stands for
+ *
+ * A pharmacy receipt is a narrow thermal slip, so this reads like one: the
+ * pharmacy's name and the sale's identity centred at the top, the lines in a tight
+ * four-column table, the money right-aligned in tabular figures, and dashed rules
+ * where the paper would be torn. The centring and the rules are not decoration —
+ * they are what make a customer trust the figure at the bottom, because it looks
+ * like the thing they have been handed at every other counter.
+ *
+ * The slip carries `id="receipt-print-area"`: the print stylesheet in
+ * `globals.css` shows only that element when the operator prints, so the page
+ * chrome, the modal and the screen-only status notes stay off the paper.
+ *
  * ## Every figure is the server's, formatted not recomputed
  *
  * The money arrives as decimal strings straight off the sale row and the item
- * rows, and is passed to `Money`, which runs `formatCedis`. Nothing here adds,
+ * rows, and is passed to `formatMoney`, which only formats. Nothing here adds,
  * subtracts or converts: the totals were computed once, in the write path, under
  * the tax settings that applied at the moment of sale, and a receipt that
  * re-derived them on the client could disagree with the row it is describing. The
@@ -19,9 +32,10 @@
  * reconciliation will be checked against.
  */
 
-import { Money, Badge } from '@/components/ui/display';
+import { Badge } from '@/components/ui/display';
 import type { BadgeTone } from '@/components/ui/display';
-import { formatDateTime } from '@/lib/format';
+import { frontendConfig } from '@/lib/frontend-config';
+import { formatDateTime, formatMoney } from '@/lib/format';
 import { METHOD_WORD, STATUS_TONE, STATUS_WORD } from './sale-words';
 import type { SaleDetail, SaleStatus } from '@/lib/api-types';
 
@@ -31,18 +45,54 @@ export function SaleStatusBadge({ status }: { status: SaleStatus }) {
   return <Badge tone={tone}>{STATUS_WORD[status]}</Badge>;
 }
 
+/** A torn-paper rule between the slip's sections. */
+function Tear() {
+  return <div aria-hidden="true" className="my-3 border-t border-dashed border-surface-300" />;
+}
+
+function SlipRow({
+  label,
+  value,
+  strong,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div
+      className={[
+        'flex justify-between gap-3',
+        strong ? 'text-sm font-semibold text-neutral-900' : 'text-2xs text-neutral-600',
+      ].join(' ')}
+    >
+      <span className="min-w-0 truncate">{label}</span>
+      <span className="money shrink-0">{value}</span>
+    </div>
+  );
+}
+
 export function Receipt({ detail }: { detail: SaleDetail }) {
-  const { sale, items, payments, servedByName, approvedByName } = detail;
+  const { sale, items, batches, payments, servedByName, approvedByName } = detail;
   const awaitingMomo =
     sale.status === 'pending' && payments.some((payment) => payment.method === 'momo');
 
+  // A line can draw from more than one lot; the slip names them under the item the
+  // way a dispenser would write them on the back of the box.
+  const lotsByItem = new Map<string, string[]>();
+  for (const batch of batches) {
+    const lots = lotsByItem.get(batch.saleItemId);
+    if (lots === undefined) {
+      lotsByItem.set(batch.saleItemId, [batch.lotNumber]);
+    } else {
+      lots.push(batch.lotNumber);
+    }
+  }
+
   return (
-    <div className="space-y-4 text-sm">
+    <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-base font-semibold text-neutral-900">Sale {sale.saleNumber}</p>
-          <p className="text-2xs text-neutral-500">{formatDateTime(sale.createdAt)}</p>
-        </div>
+        <p className="text-2xs text-neutral-500">{formatDateTime(sale.createdAt)}</p>
         <SaleStatusBadge status={sale.status} />
       </div>
 
@@ -57,72 +107,127 @@ export function Receipt({ detail }: { detail: SaleDetail }) {
         </p>
       )}
 
-      <ul className="divide-y divide-surface-200 border-y border-surface-200">
-        {items.map((item) => (
-          <li key={item.id} className="flex items-start justify-between gap-3 py-2">
-            <div className="min-w-0">
-              <p className="truncate font-medium text-neutral-900">{item.description}</p>
-              <p className="text-2xs text-neutral-500">
-                {item.quantity} × {item.sellUnit} @ <Money value={item.unitPrice} />
-              </p>
-            </div>
-            <Money value={item.lineTotal} className="shrink-0 font-semibold text-neutral-900" />
-          </li>
-        ))}
-      </ul>
+      <div
+        id="receipt-print-area"
+        className="mx-auto w-full max-w-sm rounded-md border border-surface-200 bg-white px-4 py-5 text-neutral-800"
+      >
+        <header className="space-y-0.5 text-center">
+          <p className="text-base font-bold uppercase tracking-wide text-neutral-900">
+            {frontendConfig.appName}
+          </p>
+          <p className="text-2xs text-neutral-600">
+            Receipt {sale.saleNumber} · {formatDateTime(sale.createdAt)}
+          </p>
+          <p className="text-2xs text-neutral-600">Served by {servedByName ?? '—'}</p>
+          {approvedByName !== null && (
+            <p className="text-2xs text-neutral-600">Approved by {approvedByName}</p>
+          )}
+        </header>
 
-      <dl className="space-y-1">
-        <Row label="Subtotal" value={sale.subtotal} />
-        {Number(sale.discount) > 0 && (
-          <Row label={`Discount${sale.discountReason === null ? '' : ` · ${sale.discountReason}`}`} value={`-${sale.discount}`} />
-        )}
-        <Row label={`VAT ${sale.vatRate}`} value={sale.vatAmount} muted />
-        <Row label={`NHIL ${sale.nhilRate}`} value={sale.nhilAmount} muted />
-        <Row label={`GETFund ${sale.getfundRate}`} value={sale.getfundAmount} muted />
-        <div className="flex justify-between border-t border-surface-200 pt-2 text-base font-semibold text-neutral-900">
-          <dt>Total</dt>
-          <dd>
-            <Money value={sale.total} />
-          </dd>
+        <Tear />
+
+        <table className="w-full text-left text-2xs">
+          <thead>
+            <tr className="text-neutral-500">
+              <th scope="col" className="pb-1 font-medium">
+                Item
+              </th>
+              <th scope="col" className="pb-1 text-right font-medium">
+                Qty
+              </th>
+              <th scope="col" className="pb-1 text-right font-medium">
+                Price
+              </th>
+              <th scope="col" className="pb-1 text-right font-medium">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-100">
+            {items.map((item) => {
+              const lots = lotsByItem.get(item.id);
+              return (
+                <tr key={item.id} className="align-top">
+                  <td className="max-w-0 py-1.5 pr-2">
+                    <p className="truncate text-sm font-medium text-neutral-900">
+                      {item.description}
+                    </p>
+                    {lots !== undefined && lots.length > 0 && (
+                      <p className="truncate text-2xs text-neutral-500">Batch {lots.join(', ')}</p>
+                    )}
+                  </td>
+                  <td className="money whitespace-nowrap py-1.5 text-right text-neutral-600">
+                    {item.quantity} {item.sellUnit}
+                  </td>
+                  <td className="money whitespace-nowrap py-1.5 text-right text-neutral-600">
+                    {formatMoney(item.unitPrice)}
+                  </td>
+                  <td className="money whitespace-nowrap py-1.5 text-right font-semibold text-neutral-900">
+                    {formatMoney(item.lineTotal)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        <Tear />
+
+        <div className="space-y-1">
+          <SlipRow label="Subtotal" value={formatMoney(sale.subtotal)} />
+          {Number(sale.discount) > 0 && (
+            <SlipRow
+              label={`Discount${sale.discountReason === null ? '' : ` · ${sale.discountReason}`}`}
+              value={`-${formatMoney(sale.discount)}`}
+            />
+          )}
+          <SlipRow label="Total" value={formatMoney(sale.total)} strong />
         </div>
-        <Row label="Paid" value={sale.amountPaid} />
-        {Number(sale.changeGiven) > 0 && <Row label="Change" value={sale.changeGiven} />}
-      </dl>
 
-      <div className="space-y-1 border-t border-surface-200 pt-3">
-        <p className="text-2xs font-semibold uppercase tracking-wide text-neutral-500">Payments</p>
-        {payments.length === 0 ? (
-          <p className="text-2xs text-neutral-500">No payment recorded — the sale is pending.</p>
-        ) : (
-          <ul className="space-y-1">
-            {payments.map((payment) => (
-              <li key={payment.id} className="flex items-center justify-between gap-2 text-2xs">
-                <span className="text-neutral-700">
-                  {METHOD_WORD[payment.method]}
-                  <span className="ml-1 text-neutral-400">· {payment.status}</span>
-                </span>
-                <Money value={payment.amount} />
-              </li>
-            ))}
-          </ul>
-        )}
+        <Tear />
+
+        <div className="space-y-1">
+          <p className="text-2xs font-semibold uppercase tracking-wide text-neutral-500">
+            Tax included in the above
+          </p>
+          <SlipRow label={`VAT ${sale.vatRate}`} value={formatMoney(sale.vatAmount)} />
+          <SlipRow label={`NHIL ${sale.nhilRate}`} value={formatMoney(sale.nhilAmount)} />
+          <SlipRow label={`GETFund ${sale.getfundRate}`} value={formatMoney(sale.getfundAmount)} />
+          <SlipRow label="Total tax" value={formatMoney(sale.taxTotal)} />
+        </div>
+
+        <Tear />
+
+        <div className="space-y-1">
+          <p className="text-2xs font-semibold uppercase tracking-wide text-neutral-500">Payments</p>
+          {payments.length === 0 ? (
+            <p className="text-2xs text-neutral-500">No payment recorded — the sale is pending.</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {payments.map((payment) => (
+                <li
+                  key={payment.id}
+                  className="flex items-center justify-between gap-2 text-2xs text-neutral-600"
+                >
+                  <span className="min-w-0 truncate">
+                    {METHOD_WORD[payment.method]}
+                    <span className="text-neutral-400"> · {payment.status}</span>
+                  </span>
+                  <span className="money shrink-0">{formatMoney(payment.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <SlipRow label="Amount paid" value={formatMoney(sale.amountPaid)} strong />
+          {Number(sale.changeGiven) > 0 && (
+            <SlipRow label="Change given" value={formatMoney(sale.changeGiven)} strong />
+          )}
+        </div>
+
+        <Tear />
+
+        <p className="text-center text-2xs text-neutral-500">Thank you — get well soon.</p>
       </div>
-
-      <div className="space-y-0.5 border-t border-surface-200 pt-3 text-2xs text-neutral-500">
-        <p>Served by {servedByName ?? '—'}</p>
-        {approvedByName !== null && <p>Approved by {approvedByName}</p>}
-      </div>
-    </div>
-  );
-}
-
-function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <div className={['flex justify-between gap-3', muted ? 'text-2xs text-neutral-500' : 'text-neutral-600'].join(' ')}>
-      <dt className="min-w-0 truncate">{label}</dt>
-      <dd className="shrink-0">
-        <Money value={value} />
-      </dd>
     </div>
   );
 }
