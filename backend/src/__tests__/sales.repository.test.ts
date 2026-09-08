@@ -1094,7 +1094,11 @@ describe('listSales', () => {
     await listSales(sql, PHARMACY, { limit: 50, offset: 0 });
 
     const text = onlyCall(calls).text;
-    expect(text).toContain('array_agg(sp.method order by sp.created_at, sp.id)');
+    // The `::text` is asserted on purpose: without it the column is an array of the
+    // `sale_payment_method` enum, an OID `pg` cannot parse, and the driver returns
+    // the wire string `"{cash}"` instead of an array — which is a `.map is not a
+    // function` crash on the till the first time the list has a sale on it.
+    expect(text).toContain('array_agg(sp.method::text order by sp.created_at, sp.id)');
     expect(text).toContain('coalesce(');
     expect(text).toContain("'{}'");
     // A join would repeat the sale once per tender, and `limit 50` would then

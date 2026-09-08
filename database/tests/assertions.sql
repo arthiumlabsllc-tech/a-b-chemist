@@ -1647,7 +1647,7 @@ select s.id, s.sale_number, s.status, s.created_at, s.total, s.amount_paid,
             p.full_name as patient_name,
             (select count(*) from sale_items si where si.sale_id = s.id) as item_count,
             coalesce(
-              (select array_agg(sp.method order by sp.created_at, sp.id)
+              (select array_agg(sp.method::text order by sp.created_at, sp.id)
                  from sale_payments sp
                 where sp.sale_id = s.id),
               '{}'
@@ -1666,7 +1666,7 @@ select s.id, s.sale_number, s.status, s.created_at, s.total, s.amount_paid,
             p.full_name as patient_name,
             (select count(*) from sale_items si where si.sale_id = s.id) as item_count,
             coalesce(
-              (select array_agg(sp.method order by sp.created_at, sp.id)
+              (select array_agg(sp.method::text order by sp.created_at, sp.id)
                  from sale_payments sp
                 where sp.sale_id = s.id),
               '{}'
@@ -1685,7 +1685,7 @@ select s.id, s.sale_number, s.status, s.created_at, s.total, s.amount_paid,
             p.full_name as patient_name,
             (select count(*) from sale_items si where si.sale_id = s.id) as item_count,
             coalesce(
-              (select array_agg(sp.method order by sp.created_at, sp.id)
+              (select array_agg(sp.method::text order by sp.created_at, sp.id)
                  from sale_payments sp
                 where sp.sale_id = s.id),
               '{}'

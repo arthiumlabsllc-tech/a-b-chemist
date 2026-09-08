@@ -689,6 +689,16 @@ export async function listSalePayments(sql: Sql, saleId: string): Promise<SalePa
  * `payment_methods` is aggregated rather than joined into rows, so one sale is one
  * row of the result however many tenders settled it. A join would repeat the sale
  * per tender and `limit` would then cut through the middle of one sale's payments.
+ *
+ * The `::text` inside the aggregate is load-bearing too. `sp.method` is the
+ * `sale_payment_method` enum, so without the cast the column is an array of that
+ * enum — an OID `pg` has no parser for, because custom type OIDs are minted per
+ * database and cannot be in a built-in table. The driver then hands back the raw
+ * wire text, `"{cash,momo}"`, a *string*: it sails through the `?? []` below and
+ * reaches the till as `"paymentMethods": "{cash,momo}"`, where `.map` on it is the
+ * client-side crash that takes down the whole Sales page the first day the page
+ * has a sale on it. Casting the element makes the column `text[]`, one of the OIDs
+ * `pg` does parse, so it arrives as a real array.
  */
 export async function listSales(
   sql: Sql,
@@ -732,7 +742,7 @@ export async function listSales(
             p.full_name as patient_name,
             (select count(*) from sale_items si where si.sale_id = s.id) as item_count,
             coalesce(
-              (select array_agg(sp.method order by sp.created_at, sp.id)
+              (select array_agg(sp.method::text order by sp.created_at, sp.id)
                  from sale_payments sp
                 where sp.sale_id = s.id),
               '{}'
