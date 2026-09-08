@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { ErrorNotice } from '@/components/ui/display';
 import { Field, Input, Select } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
+import { shownError, useTouchedFields } from '@/hooks/use-touched';
 import { PRODUCT_LIMITS } from '@/lib/api-types';
 import type { ProductBody, ProductRow, SellUnit, VatTreatment } from '@/lib/api-types';
 import { moneyBody, optionalText, quantityBody, requiredText } from '@/lib/inventory';
@@ -109,14 +110,17 @@ export function ProductModal({
   onSubmit,
 }: ProductModalProps) {
   const [draft, setDraft] = useState<ProductDraft>(() => draftFrom(product));
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
     if (open) {
       setDraft(draftFrom(product));
+      resetTouched();
     }
-  }, [open, product]);
+  }, [open, product, resetTouched]);
 
   function set<K extends keyof ProductDraft>(key: K, value: ProductDraft[K]): void {
+    touch(key);
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
@@ -204,7 +208,7 @@ export function ProductModal({
           label="Name"
           htmlFor="product-name"
           hint="As it appears on the box."
-          error={nameError ?? undefined}
+          error={shownError(touched, 'name', nameError)}
           required
         >
           <Input
@@ -219,7 +223,7 @@ export function ProductModal({
             label="Code"
             htmlFor="product-code"
             hint={mode === 'edit' ? 'A product code cannot be changed after creation.' : 'Your own short code.'}
-            error={codeError ?? undefined}
+            error={shownError(touched, 'code', codeError)}
             required={mode === 'create'}
           >
             <Input
@@ -262,7 +266,7 @@ export function ProductModal({
             label="Pack size"
             htmlFor="product-packsize"
             hint="Base units in one pack. 1 if it is only sold singly."
-            error={packSize.ok ? undefined : packSize.message}
+            error={shownError(touched, 'packSize', packSize.ok ? null : packSize.message)}
             required
           >
             <Input
@@ -292,7 +296,7 @@ export function ProductModal({
             label="Unit price"
             htmlFor="product-price"
             hint="Per base unit, for example 0.85."
-            error={unitPrice.ok ? undefined : unitPrice.message}
+            error={shownError(touched, 'unitPrice', unitPrice.ok ? null : unitPrice.message)}
             required
           >
             <Input
@@ -322,7 +326,7 @@ export function ProductModal({
             label="Reorder level"
             htmlFor="product-reorder"
             hint="Flag the product as low at or under this many units. 0 for none."
-            error={reorderLevel.ok ? undefined : reorderLevel.message}
+            error={shownError(touched, 'reorderLevel', reorderLevel.ok ? null : reorderLevel.message)}
           >
             <Input
               id="product-reorder"

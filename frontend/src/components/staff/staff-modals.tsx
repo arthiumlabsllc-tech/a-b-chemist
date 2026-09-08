@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { ErrorNotice, WarningNotice } from '@/components/ui/display';
 import { Field, Input, Select } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
+import { shownError, useTouchedFields } from '@/hooks/use-touched';
 import type {
   CreateStaffBody,
   ResetPasswordBody,
@@ -90,6 +91,7 @@ export function CreateStaffModal({
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<UserRole>('staff');
   const [password, setPassword] = useState('');
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
     if (open) {
@@ -98,8 +100,9 @@ export function CreateStaffModal({
       setPhone('');
       setRole('staff');
       setPassword('');
+      resetTouched();
     }
-  }, [open]);
+  }, [open, resetTouched]);
 
   const nameError = validateFullName(fullName);
   const emailError = validateEmail(email);
@@ -138,19 +141,27 @@ export function CreateStaffModal({
     >
       <div className="space-y-4">
         {error !== null && <ErrorNotice>{error}</ErrorNotice>}
-        <Field label="Full name" htmlFor="create-name" error={nameError ?? undefined} required>
+        <Field
+          label="Full name"
+          htmlFor="create-name"
+          error={shownError(touched, 'fullName', nameError)}
+          required
+        >
           <Input
             id="create-name"
             value={fullName}
             autoComplete="off"
-            onChange={(event) => setFullName(event.target.value)}
+            onChange={(event) => {
+              touch('fullName');
+              setFullName(event.target.value);
+            }}
           />
         </Field>
         <Field
           label="Email"
           htmlFor="create-email"
           hint="This is what they sign in with. It cannot be changed later."
-          error={emailError ?? undefined}
+          error={shownError(touched, 'email', emailError)}
           required
         >
           <Input
@@ -158,16 +169,22 @@ export function CreateStaffModal({
             type="email"
             value={email}
             autoComplete="off"
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => {
+              touch('email');
+              setEmail(event.target.value);
+            }}
           />
         </Field>
-        <Field label="Phone" htmlFor="create-phone" error={phoneError ?? undefined}>
+        <Field label="Phone" htmlFor="create-phone" error={shownError(touched, 'phone', phoneError)}>
           <Input
             id="create-phone"
             type="tel"
             value={phone}
             autoComplete="off"
-            onChange={(event) => setPhone(event.target.value)}
+            onChange={(event) => {
+              touch('phone');
+              setPhone(event.target.value);
+            }}
           />
         </Field>
         <Field label="Role" htmlFor="create-role">
@@ -177,7 +194,7 @@ export function CreateStaffModal({
           label="Initial password"
           htmlFor="create-password"
           hint="At least 8 characters. They will use this to sign in the first time."
-          error={passwordError ?? undefined}
+          error={shownError(touched, 'password', passwordError)}
           required
         >
           <Input
@@ -185,7 +202,10 @@ export function CreateStaffModal({
             type="password"
             value={password}
             autoComplete="new-password"
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              touch('password');
+              setPassword(event.target.value);
+            }}
           />
         </Field>
       </div>
@@ -220,12 +240,14 @@ export function EditStaffModal({
     role: 'staff',
     isActive: true,
   });
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
     if (open && staff !== null) {
       setDraft(staffDraftFrom(staff));
+      resetTouched();
     }
-  }, [open, staff]);
+  }, [open, staff, resetTouched]);
 
   if (staff === null) {
     return null;
@@ -267,12 +289,20 @@ export function EditStaffModal({
             including one left signed in at home.
           </WarningNotice>
         )}
-        <Field label="Full name" htmlFor="edit-name" error={nameError ?? undefined} required>
+        <Field
+          label="Full name"
+          htmlFor="edit-name"
+          error={shownError(touched, 'fullName', nameError)}
+          required
+        >
           <Input
             id="edit-name"
             value={draft.fullName}
             autoComplete="off"
-            onChange={(event) => setDraft((current) => ({ ...current, fullName: event.target.value }))}
+            onChange={(event) => {
+              touch('fullName');
+              setDraft((current) => ({ ...current, fullName: event.target.value }));
+            }}
           />
         </Field>
         <Field
@@ -282,13 +312,16 @@ export function EditStaffModal({
         >
           <Input id="edit-email" value={staff.email} disabled readOnly />
         </Field>
-        <Field label="Phone" htmlFor="edit-phone" error={phoneError ?? undefined}>
+        <Field label="Phone" htmlFor="edit-phone" error={shownError(touched, 'phone', phoneError)}>
           <Input
             id="edit-phone"
             type="tel"
             value={draft.phone}
             autoComplete="off"
-            onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))}
+            onChange={(event) => {
+              touch('phone');
+              setDraft((current) => ({ ...current, phone: event.target.value }));
+            }}
           />
         </Field>
         <Field label="Role" htmlFor="edit-role">
@@ -347,13 +380,15 @@ export function ResetPasswordModal({
 }: ResetPasswordModalProps) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
     if (open) {
       setPassword('');
       setConfirm('');
+      resetTouched();
     }
-  }, [open]);
+  }, [open, resetTouched]);
 
   if (staff === null) {
     return null;
@@ -394,7 +429,7 @@ export function ResetPasswordModal({
           label="New password"
           htmlFor="reset-password"
           hint="At least 8 characters."
-          error={passwordError ?? undefined}
+          error={shownError(touched, 'password', passwordError)}
           required
         >
           <Input
@@ -402,16 +437,27 @@ export function ResetPasswordModal({
             type="password"
             value={password}
             autoComplete="new-password"
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              touch('password');
+              setPassword(event.target.value);
+            }}
           />
         </Field>
-        <Field label="Confirm password" htmlFor="reset-confirm" error={confirmError ?? undefined} required>
+        <Field
+          label="Confirm password"
+          htmlFor="reset-confirm"
+          error={shownError(touched, 'confirm', confirmError)}
+          required
+        >
           <Input
             id="reset-confirm"
             type="password"
             value={confirm}
             autoComplete="new-password"
-            onChange={(event) => setConfirm(event.target.value)}
+            onChange={(event) => {
+              touch('confirm');
+              setConfirm(event.target.value);
+            }}
           />
         </Field>
       </div>

@@ -139,7 +139,7 @@ export function ProductGrid({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label="Products">
-      <div className="space-y-3 border-b border-surface-200 bg-white p-3 sm:p-4">
+      <div className="border-b border-surface-200 bg-white p-3 sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="flex-1">
             <label className="sr-only" htmlFor={searchId}>
@@ -175,21 +175,20 @@ export function ProductGrid({
               ))}
             </select>
           </div>
+          <label
+            htmlFor={inStockId}
+            className="flex min-h-touch w-fit cursor-pointer items-center gap-2 text-sm text-neutral-700"
+          >
+            <input
+              id={inStockId}
+              type="checkbox"
+              checked={onlyInStock}
+              onChange={(event) => onOnlyInStockChange(event.target.checked)}
+              className="h-4 w-4 rounded border-surface-300 text-primary-600 focus:ring-primary-200"
+            />
+            In stock only
+          </label>
         </div>
-
-        <label
-          htmlFor={inStockId}
-          className="flex min-h-touch w-fit cursor-pointer items-center gap-2 text-sm text-neutral-700"
-        >
-          <input
-            id={inStockId}
-            type="checkbox"
-            checked={onlyInStock}
-            onChange={(event) => onOnlyInStockChange(event.target.checked)}
-            className="h-4 w-4 rounded border-surface-300 text-primary-600 focus:ring-primary-200"
-          />
-          In stock only
-        </label>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">

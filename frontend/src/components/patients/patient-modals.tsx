@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { ErrorNotice } from '@/components/ui/display';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
+import { shownError, useTouchedFields } from '@/hooks/use-touched';
 import type { CreatePatientBody, Gender, PatientView, UpdatePatientBody } from '@/lib/api-types';
 import { GENDERS } from '@/lib/api-types';
 import {
@@ -81,7 +82,7 @@ function ClinicalListField({
   id: string;
   label: string;
   value: string;
-  error: string | null;
+  error?: string;
   onChange: (value: string) => void;
 }) {
   return (
@@ -105,15 +106,22 @@ function ClinicalListField({
 function PatientFields({
   draft,
   errors,
+  touched,
   onField,
 }: {
   draft: PatientDraft;
   errors: PatientFieldErrors;
+  touched: Record<string, boolean>;
   onField: <K extends keyof PatientDraft>(key: K, value: PatientDraft[K]) => void;
 }) {
   return (
     <>
-      <Field label="Full name" htmlFor="patient-name" error={errors.fullName ?? undefined} required>
+      <Field
+        label="Full name"
+        htmlFor="patient-name"
+        error={shownError(touched, 'fullName', errors.fullName)}
+        required
+      >
         <Input
           id="patient-name"
           value={draft.fullName}
@@ -125,7 +133,7 @@ function PatientFields({
         label="Phone"
         htmlFor="patient-phone"
         hint="A reminder can only be texted to a number that can receive one."
-        error={errors.phone ?? undefined}
+        error={shownError(touched, 'phone', errors.phone)}
       >
         <Input
           id="patient-phone"
@@ -136,7 +144,11 @@ function PatientFields({
         />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Date of birth" htmlFor="patient-dob" error={errors.dateOfBirth ?? undefined}>
+        <Field
+          label="Date of birth"
+          htmlFor="patient-dob"
+          error={shownError(touched, 'dateOfBirth', errors.dateOfBirth)}
+        >
           <Input
             id="patient-dob"
             type="date"
@@ -156,24 +168,28 @@ function PatientFields({
         id="patient-allergies"
         label="Allergies"
         value={draft.allergies}
-        error={errors.allergies}
+        error={shownError(touched, 'allergies', errors.allergies)}
         onChange={(value) => onField('allergies', value)}
       />
       <ClinicalListField
         id="patient-conditions"
         label="Conditions"
         value={draft.conditions}
-        error={errors.conditions}
+        error={shownError(touched, 'conditions', errors.conditions)}
         onChange={(value) => onField('conditions', value)}
       />
       <ClinicalListField
         id="patient-medications"
         label="Medications"
         value={draft.medications}
-        error={errors.medications}
+        error={shownError(touched, 'medications', errors.medications)}
         onChange={(value) => onField('medications', value)}
       />
-      <Field label="Notes" htmlFor="patient-notes" error={errors.notes ?? undefined}>
+      <Field
+        label="Notes"
+        htmlFor="patient-notes"
+        error={shownError(touched, 'notes', errors.notes)}
+      >
         <Textarea
           id="patient-notes"
           rows={3}
@@ -232,15 +248,20 @@ export function CreatePatientModal({
   onSubmit,
 }: CreatePatientModalProps) {
   const [draft, setDraft] = useState<PatientDraft>(EMPTY_PATIENT_DRAFT);
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
-    if (open) setDraft(EMPTY_PATIENT_DRAFT);
-  }, [open]);
+    if (open) {
+      setDraft(EMPTY_PATIENT_DRAFT);
+      resetTouched();
+    }
+  }, [open, resetTouched]);
 
   const errors = errorsFor(draft);
   const canSubmit = !hasError(errors) && !submitting;
 
   function onField<K extends keyof PatientDraft>(key: K, value: PatientDraft[K]) {
+    touch(key);
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
@@ -268,7 +289,7 @@ export function CreatePatientModal({
     >
       <div className="space-y-4">
         {error !== null && <ErrorNotice>{error}</ErrorNotice>}
-        <PatientFields draft={draft} errors={errors} onField={onField} />
+        <PatientFields draft={draft} errors={errors} touched={touched} onField={onField} />
       </div>
     </Modal>
   );
@@ -296,10 +317,14 @@ export function EditPatientModal({
   onSubmit,
 }: EditPatientModalProps) {
   const [draft, setDraft] = useState<PatientDraft>(EMPTY_PATIENT_DRAFT);
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
-    if (open && patient !== null) setDraft(patientDraftFrom(patient));
-  }, [open, patient]);
+    if (open && patient !== null) {
+      setDraft(patientDraftFrom(patient));
+      resetTouched();
+    }
+  }, [open, patient, resetTouched]);
 
   if (patient === null) {
     return null;
@@ -312,6 +337,7 @@ export function EditPatientModal({
   const canSubmit = !hasError(errors) && !unchanged && !submitting;
 
   function onField<K extends keyof PatientDraft>(key: K, value: PatientDraft[K]) {
+    touch(key);
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
@@ -339,7 +365,7 @@ export function EditPatientModal({
     >
       <div className="space-y-4">
         {error !== null && <ErrorNotice>{error}</ErrorNotice>}
-        <PatientFields draft={draft} errors={errors} onField={onField} />
+        <PatientFields draft={draft} errors={errors} touched={touched} onField={onField} />
       </div>
     </Modal>
   );

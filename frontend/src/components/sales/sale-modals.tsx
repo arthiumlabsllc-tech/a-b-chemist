@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { ErrorNotice, Money, WarningNotice } from '@/components/ui/display';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
+import { shownError, useTouchedFields } from '@/hooks/use-touched';
 import { SALE_PAYMENT_METHODS } from '@/lib/api-types';
 import type { CreateSalePayment, SalePaymentMethod, VoidSaleBody } from '@/lib/api-types';
 import { paymentAmountBody, validateVoidReason } from '@/lib/sales';
@@ -48,12 +49,14 @@ export function VoidSaleModal({
   onSubmit,
 }: VoidSaleModalProps) {
   const [reason, setReason] = useState('');
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
     if (open) {
       setReason('');
+      resetTouched();
     }
-  }, [open]);
+  }, [open, resetTouched]);
 
   const reasonError = validateVoidReason(reason);
   const canSubmit = reasonError === null && !submitting;
@@ -89,7 +92,7 @@ export function VoidSaleModal({
           label="Reason"
           htmlFor="void-reason"
           hint="At least 3 characters. This is the audit trail for the void."
-          error={reasonError ?? undefined}
+          error={shownError(touched, 'reason', reasonError)}
           required
         >
           <Textarea
@@ -97,7 +100,10 @@ export function VoidSaleModal({
             rows={3}
             value={reason}
             placeholder="Wrong item rung, customer changed their mind…"
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) => {
+              touch('reason');
+              setReason(event.target.value);
+            }}
           />
         </Field>
       </div>
@@ -132,14 +138,16 @@ export function AddPaymentModal({
   const [method, setMethod] = useState<SalePaymentMethod>('cash');
   const [amountText, setAmountText] = useState('');
   const [reference, setReference] = useState('');
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
     if (open) {
       setMethod('cash');
       setAmountText(outstanding);
       setReference('');
+      resetTouched();
     }
-  }, [open, outstanding]);
+  }, [open, outstanding, resetTouched]);
 
   const amount = paymentAmountBody(amountText);
   const canSubmit = amount.ok && !submitting;
@@ -201,7 +209,7 @@ export function AddPaymentModal({
           label="Amount"
           htmlFor="add-payment-amount"
           hint="In cedis, for example 12.50"
-          error={amount.ok ? undefined : amount.message}
+          error={shownError(touched, 'amount', amount.ok ? null : amount.message)}
           required
         >
           <Input
@@ -209,7 +217,10 @@ export function AddPaymentModal({
             type="text"
             inputMode="decimal"
             value={amountText}
-            onChange={(event) => setAmountText(event.target.value)}
+            onChange={(event) => {
+              touch('amount');
+              setAmountText(event.target.value);
+            }}
           />
         </Field>
         {method === 'cash' && (

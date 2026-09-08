@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { ErrorNotice, StatusNotice, WarningNotice } from '@/components/ui/display';
 import { Field, Input, Textarea } from '@/components/ui/field';
 import { Modal } from '@/components/ui/modal';
+import { shownError, useTouchedFields } from '@/hooks/use-touched';
 import { PRODUCT_LIMITS } from '@/lib/api-types';
 import type { AdjustBatchBody, ReceiveStockBody, WriteOffBody } from '@/lib/api-types';
 import {
@@ -60,6 +61,7 @@ export function ReceiveStockModal({
   const [expiryDate, setExpiryDate] = useState('');
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
     if (open) {
@@ -69,8 +71,9 @@ export function ReceiveStockModal({
       setExpiryDate('');
       setReason('');
       setNote('');
+      resetTouched();
     }
-  }, [open]);
+  }, [open, resetTouched]);
 
   const lotError = requiredText(lotNumber, 'the lot number', PRODUCT_LIMITS.lotNumber.max);
   const quantity = quantityBody(
@@ -124,14 +127,17 @@ export function ReceiveStockModal({
           label="Lot number"
           htmlFor="receive-lot"
           hint="The batch or lot number printed on the delivery."
-          error={lotError ?? undefined}
+          error={shownError(touched, 'lot', lotError)}
           required
         >
           <Input
             id="receive-lot"
             value={lotNumber}
             autoComplete="off"
-            onChange={(event) => setLotNumber(event.target.value)}
+            onChange={(event) => {
+              touch('lot');
+              setLotNumber(event.target.value);
+            }}
           />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -139,7 +145,7 @@ export function ReceiveStockModal({
             label="Units received"
             htmlFor="receive-quantity"
             hint="Base units — single tablets or sachets, not packs."
-            error={quantity.ok ? undefined : quantity.message}
+            error={shownError(touched, 'quantity', quantity.ok ? null : quantity.message)}
             required
           >
             <Input
@@ -147,14 +153,17 @@ export function ReceiveStockModal({
               type="text"
               inputMode="numeric"
               value={quantityText}
-              onChange={(event) => setQuantityText(event.target.value)}
+              onChange={(event) => {
+                touch('quantity');
+                setQuantityText(event.target.value);
+              }}
             />
           </Field>
           <Field
             label="Cost price"
             htmlFor="receive-cost"
             hint="What one unit cost, for example 0.85."
-            error={cost.ok ? undefined : cost.message}
+            error={shownError(touched, 'cost', cost.ok ? null : cost.message)}
             required
           >
             <Input
@@ -162,7 +171,10 @@ export function ReceiveStockModal({
               type="text"
               inputMode="decimal"
               value={costPriceText}
-              onChange={(event) => setCostPriceText(event.target.value)}
+              onChange={(event) => {
+                touch('cost');
+                setCostPriceText(event.target.value);
+              }}
             />
           </Field>
         </div>
@@ -182,21 +194,32 @@ export function ReceiveStockModal({
           label="Reason"
           htmlFor="receive-reason"
           hint="Optional. For example a supplier or delivery note."
-          error={reasonError ?? undefined}
+          error={shownError(touched, 'reason', reasonError)}
         >
           <Input
             id="receive-reason"
             value={reason}
             autoComplete="off"
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) => {
+              touch('reason');
+              setReason(event.target.value);
+            }}
           />
         </Field>
-        <Field label="Note" htmlFor="receive-note" hint="Optional." error={noteError ?? undefined}>
+        <Field
+          label="Note"
+          htmlFor="receive-note"
+          hint="Optional."
+          error={shownError(touched, 'note', noteError)}
+        >
           <Textarea
             id="receive-note"
             rows={2}
             value={note}
-            onChange={(event) => setNote(event.target.value)}
+            onChange={(event) => {
+              touch('note');
+              setNote(event.target.value);
+            }}
           />
         </Field>
       </div>
@@ -233,14 +256,16 @@ export function AdjustBatchModal({
   const [quantityText, setQuantityText] = useState('');
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
     if (open) {
       setQuantityText(String(currentQuantity));
       setReason('');
       setNote('');
+      resetTouched();
     }
-  }, [open, currentQuantity]);
+  }, [open, currentQuantity, resetTouched]);
 
   const quantity = quantityBody(
     quantityText,
@@ -284,7 +309,7 @@ export function AdjustBatchModal({
           label="Counted quantity"
           htmlFor="adjust-quantity"
           hint={`The system holds ${currentQuantity}. Enter the total you counted.`}
-          error={quantity.ok ? undefined : quantity.message}
+          error={shownError(touched, 'quantity', quantity.ok ? null : quantity.message)}
           required
         >
           <Input
@@ -292,7 +317,10 @@ export function AdjustBatchModal({
             type="text"
             inputMode="numeric"
             value={quantityText}
-            onChange={(event) => setQuantityText(event.target.value)}
+            onChange={(event) => {
+              touch('quantity');
+              setQuantityText(event.target.value);
+            }}
           />
         </Field>
         {quantity.ok && delta !== 0 && (
@@ -304,7 +332,7 @@ export function AdjustBatchModal({
           label="Reason"
           htmlFor="adjust-reason"
           hint="At least 3 characters. This is the audit trail for the correction."
-          error={reasonError ?? undefined}
+          error={shownError(touched, 'reason', reasonError)}
           required
         >
           <Input
@@ -312,21 +340,27 @@ export function AdjustBatchModal({
             value={reason}
             autoComplete="off"
             placeholder="Stock count, damage, theft…"
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) => {
+              touch('reason');
+              setReason(event.target.value);
+            }}
           />
         </Field>
         <Field
           label="Note"
           htmlFor="adjust-note"
           hint="What was counted or what happened."
-          error={noteError ?? undefined}
+          error={shownError(touched, 'note', noteError)}
           required
         >
           <Textarea
             id="adjust-note"
             rows={2}
             value={note}
-            onChange={(event) => setNote(event.target.value)}
+            onChange={(event) => {
+              touch('note');
+              setNote(event.target.value);
+            }}
           />
         </Field>
       </div>
@@ -363,6 +397,7 @@ export function WriteOffBatchModal({
   const [quantityText, setQuantityText] = useState('');
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
+  const { touched, touch, resetTouched } = useTouchedFields();
 
   useEffect(() => {
     if (open) {
@@ -370,8 +405,9 @@ export function WriteOffBatchModal({
       setQuantityText('');
       setReason('');
       setNote('');
+      resetTouched();
     }
-  }, [open]);
+  }, [open, resetTouched]);
 
   // A partial write-off cannot exceed what the lot holds; the whole-batch case
   // sends no quantity at all, which the route reads as "all of it".
@@ -436,7 +472,7 @@ export function WriteOffBatchModal({
             label="Units to write off"
             htmlFor="writeoff-quantity"
             hint={`At most ${currentQuantity}, the lot holds no more.`}
-            error={quantity.ok ? undefined : quantity.message}
+            error={shownError(touched, 'quantity', quantity.ok ? null : quantity.message)}
             required
           >
             <Input
@@ -444,7 +480,10 @@ export function WriteOffBatchModal({
               type="text"
               inputMode="numeric"
               value={quantityText}
-              onChange={(event) => setQuantityText(event.target.value)}
+              onChange={(event) => {
+                touch('quantity');
+                setQuantityText(event.target.value);
+              }}
             />
           </Field>
         )}
@@ -452,7 +491,7 @@ export function WriteOffBatchModal({
           label="Reason"
           htmlFor="writeoff-reason"
           hint="At least 3 characters. This is the audit trail for the write-off."
-          error={reasonError ?? undefined}
+          error={shownError(touched, 'reason', reasonError)}
           required
         >
           <Input
@@ -460,21 +499,27 @@ export function WriteOffBatchModal({
             value={reason}
             autoComplete="off"
             placeholder="Expired, damaged, recalled…"
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) => {
+              touch('reason');
+              setReason(event.target.value);
+            }}
           />
         </Field>
         <Field
           label="Note"
           htmlFor="writeoff-note"
           hint="What was written off and why."
-          error={noteError ?? undefined}
+          error={shownError(touched, 'note', noteError)}
           required
         >
           <Textarea
             id="writeoff-note"
             rows={2}
             value={note}
-            onChange={(event) => setNote(event.target.value)}
+            onChange={(event) => {
+              touch('note');
+              setNote(event.target.value);
+            }}
           />
         </Field>
       </div>
