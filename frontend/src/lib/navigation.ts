@@ -159,6 +159,14 @@ export interface NavItem {
  * and `consultations:write`, on the patient's own record.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
+  // The landing page. Gated on `sales:read` rather than left open, because every
+  // destination in this table names a permission and the guard-and-shell agreement
+  // test holds the table to that; and `sales:read` is the gate that costs nobody
+  // the front door, because it is in the counter staff's set and therefore in all
+  // three roles'. The cards inside carry their own gates, each the same permission
+  // as the page it summarises, so nobody is shown a figure the API would then
+  // refuse to hand over.
+  { href: '/dashboard', label: 'Dashboard', group: 'counter', permission: 'sales:read' },
   { href: '/pos', label: 'Till', group: 'counter', permission: 'sales:create' },
   { href: '/sales', label: 'Sales', group: 'counter', permission: 'sales:read' },
   { href: '/sync', label: 'Sync', group: 'counter', permission: 'sales:create' },
@@ -180,12 +188,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
 /**
  * Where a signed-in person lands.
  *
- * The till rather than a dashboard, because that is what the person at the
- * counter is walking towards the tablet for, and because a dashboard of figures
- * is a page somebody looks at once and a till is a page somebody looks at four
- * hundred times a day. `/` redirects here.
+ * The dashboard rather than the till. The first question after signing in is "how
+ * are we doing", and the till is one tap from the dashboard for whoever is walking
+ * up to a customer — `Open the till` is the page's primary action and its first
+ * quick link, so the counter loses no step. The dashboard answers the owner and the
+ * pharmacist with the day's takings and answers everybody with what is waiting to
+ * be read, which is a page somebody looks at every shift rather than once.
  */
-export const LANDING_HREF = '/pos';
+export const LANDING_HREF = '/dashboard';
 
 export interface NavSection {
   group: NavGroup;

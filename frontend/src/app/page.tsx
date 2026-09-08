@@ -5,8 +5,7 @@ import { LANDING_HREF } from '@/lib/navigation';
 /**
  * The root route, which is a redirect and nothing else.
  *
- * There is no dashboard. The person walking up to this tablet is at a counter
- * with a customer, and the page they want is the till — so `/` goes there, and
+ * `/` goes to the dashboard, the landing page in `lib/navigation`, and
  * `RequireAuth` sends anybody not signed in on to `/login` from there. Two hops
  * rather than one, which costs nothing a person can see and keeps the auth
  * decision in the one place that makes it.

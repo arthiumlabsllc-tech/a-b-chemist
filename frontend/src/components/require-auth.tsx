@@ -92,16 +92,16 @@ export function RequireAuth({ children }: { children: ReactNode }) {
         <div className="w-full max-w-md rounded-lg border border-surface-200 bg-white p-6">
           <h1 className="text-lg font-semibold text-neutral-900">{decision.message}</h1>
           <p className="mt-2 text-sm text-neutral-600">{decision.detail}</p>
-          {/* A link and not a redirect. Redirecting to `LANDING_HREF` from here
-              would be safe today, because every role holds `sales:create`, but
-              it would be a loop the day the landing page gains a gate — and a
-              person who has just been refused something should be the one who
-              decides where to go next. */}
+          {/* A link and not a redirect. The landing page is gated only on
+              `sales:read`, which every role holds, so redirecting here would be
+              safe — but it would be a loop the day the landing page gains a
+              narrower gate, and a person who has just been refused something
+              should be the one who decides where to go next. */}
           <Link
             href={LANDING_HREF}
             className="mt-6 inline-flex min-h-touch items-center rounded-md bg-primary-500 px-4 text-sm font-semibold text-white hover:bg-primary-600"
           >
-            Back to the till
+            Back to the dashboard
           </Link>
         </div>
       </FullPageNotice>
